@@ -5,6 +5,7 @@ if SERVER then
 	resource.AddWorkshop("514778608")
 
 	util.AddNetworkString("ttt_exp_microwave_register_thrower")
+	util.AddNetworkString("ttt_exp_microwave_update_team")
 end
 
 
@@ -121,17 +122,48 @@ function SWEP:OnDrop()
 	self:Remove()
 end
 
-if CLIENT then
-	net.Receive("ttt_exp_microwave_register_thrower", function()
-		local ent = net.ReadEntity()
+if TTT2 then
+	if CLIENT then
+		net.Receive("ttt_exp_microwave_register_thrower", function()
+			local ent = net.ReadEntity()
+	
+			ent.userdata = {}
+			ent.userdata.team = net.ReadString()
+			ent.userdata.color = {
+				r = net.ReadUInt(8),
+				g = net.ReadUInt(8),
+				b = net.ReadUInt(8),
+				a = net.ReadUInt(8)
+			}
+	
+			-- add stencil for teammembers
+			if LocalPlayer():GetTeam() == ent.userdata.team then
+				marks.Add({ent}, ent.userdata.color)
+			end
+		end)
 
-		ent.userdata = {}
-		ent.userdata.team = net.ReadString()
-		ent.userdata.color = {
-			r = net.ReadUInt(8),
-			g = net.ReadUInt(8),
-			b = net.ReadUInt(8),
-			a = net.ReadUInt(8)
-		}
-	end)
+		net.Receive("ttt_exp_microwave_update_team", function()
+			local client = LocalPlayer()
+			local new_team = net.ReadString()
+
+			local microwaves = ents.FindByClass("ttt_expmicrowave")
+			PrintTable(microwaves)
+			for _, v in pairs(microwaves) do
+				marks.Remove({v})
+
+				if v.userdata and v.userdata.team == new_team then
+					marks.Add({v}, v.userdata.color)
+				end
+			end
+		end)
+	end
+
+	if SERVER then
+		hook.Add("TTT2UpdateTeam", "tt2_microwave_update_team", function(ply, old, new)
+			print("update team ..... updating micro")
+			net.Start("ttt_exp_microwave_update_team")
+			net.WriteString(new)
+			net.Send(ply)
+		end)
+	end
 end
