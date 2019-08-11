@@ -160,7 +160,6 @@ if TTT2 then
 
 	if SERVER then
 		hook.Add("TTT2UpdateTeam", "tt2_microwave_update_team", function(ply, old, new)
-			print("update team ..... updating micro")
 			net.Start("ttt_exp_microwave_update_team")
 			net.WriteString(new)
 			net.Send(ply)
