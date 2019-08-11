@@ -26,33 +26,55 @@ end
 
 function ENT:Think()
 	self:Explode()
-	if CLIENT then
-		local thrower = self:GetNWEntity("owner")
-		if IsValid(thrower) then	
-			local ply = LocalPlayer()
-			if gmod.GetGamemode().Name == "TTT2 (Advanced Update)" then
-				if ply:GetTeam() == thrower:GetTeam() then
-					self:LightUp(255,0,0)
-				end
-			elseif (ply:IsTraitor() && thrower:IsTraitor()) then
-				self:LightUp(255,0,0)
-			else end
+
+	if not CLIENT then return end
+
+	local client = LocalPlayer()
+
+	-- this has to be here to be visible without the entity beeing rendered
+	if TTT2 then
+		-- do nothing until data is synced
+		if not self.userdata then return end
+
+		if client:GetTeam() == self.userdata.team then
+			self:LightUp(self.userdata.color)
+		end
+	else
+		local thrower = self:GetNWEntity("micowave_owner")
+
+		if not IsValid(thrower) then return end
+
+		if (client:IsTraitor() && thrower:IsTraitor()) then
+			self:LightUp(Color(255,0,0,255))
 		end
 	end
 end
 
+
 function ENT:Draw()
 	self:DrawModel()
-	local thrower = self:GetNWEntity("owner")
-	if IsValid(thrower) then
-		local ply = LocalPlayer()
-		if gmod.GetGamemode().Name == "TTT2 (Advanced Update)" then
-			if ply:GetTeam() == thrower:GetTeam() then
-				self:DrawWarning(Color(255,0,0,250))
-			end
-		elseif (ply:IsTraitor() && thrower:IsTraitor()) then
-			self:DrawWarning(Color(255,0,0,250))
-		else end
+
+	local client = LocalPlayer()
+
+	if TTT2 then
+		-- do nothing until data is synced
+		if not self.userdata then return end
+
+		if client:GetTeam() == self.userdata.team then
+			self:DrawWarning(self.userdata.color)
+			self:SetColor(self.userdata.color)
+		else
+			self:SetColor(Color(255,255,255,255))
+		end
+	else
+		local thrower = self:GetNWEntity("micowave_owner")
+
+		if not IsValid(thrower) then return end
+
+		if (client:IsTraitor() && thrower:IsTraitor()) then
+			self:DrawWarning(Color(255,0,0,255))
+			self:SetColor(Color(255,0,0,255))
+		end
 	end
 end
 
@@ -66,20 +88,25 @@ function ENT:DrawWarning(col)
 
 	dpos = self:GetPos()
 
-	self:SetColor(col)
 	cam.Start3D2D(Pos + Vector(0,0, -60), Ang, 0.5)
-	draw.SimpleTextOutlined("EXPLODING MICROWAVE!", "Default", 0, -200, col, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color( 0, 0, 0, 250))
+	draw.SimpleTextOutlined("EXPLOSIVE MICROWAVE!", "Default", 0, -200, col, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color( 0, 0, 0, 250))
+	cam.End3D2D()
+
+	Ang:RotateAroundAxis(Ang:Right(), 180)
+	cam.Start3D2D(Pos + Vector(0,0, -60), Ang, 0.5)
+	draw.SimpleTextOutlined("EXPLOSIVE MICROWAVE!", "Default", 0, -200, col, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color( 0, 0, 0, 250))
 	cam.End3D2D()
 end
 
-function ENT:LightUp(r,g,b)
+
+function ENT:LightUp(color)
 	if CLIENT then
 		if IsValid(self) then
 			dlight = DynamicLight(self:EntIndex())
 
-			dlight.r = r
-			dlight.g = g
-			dlight.b = b
+			dlight.r = color.r
+			dlight.g = color.g
+			dlight.b = color.b
 
 			spos = self:GetPos()
 
@@ -92,8 +119,8 @@ function ENT:LightUp(r,g,b)
 	end
 end
 
-function ENT:Explode()
 
+function ENT:Explode()
 	if SERVER then
 		local expos = self:GetPos()
 		local sphere = ents.FindInSphere(expos, 100)
@@ -101,33 +128,35 @@ function ENT:Explode()
 		local throwerRole = self:GetThrower():GetRole()
 
 		for k, v in pairs(sphere) do
-			if (v:IsPlayer() && v:GetRole() != throwerRole and not v:IsSpec()) then
-			
-			if gmod.GetGamemode().Name == "TTT2 (Advanced Update)" then
-				if v:IsInTeam(thrower) then return end
+			if not v or not v:IsPlayer() then return end
+			if v:IsSpec() then return end
+
+			if TTT2 then
+				if v:GetTeam() == self.userdata.team then return end
+			else
+				if v:IsTraitor() and thrower:IsTraitor() and v:GetRole() == throwerRole then return end
 			end
-				if v:IsTraitor() && thrower:IsTraitor() then return end
-				
-					local tracedata = {};
-					tracedata.start = v:GetShootPos();
-					tracedata.endpos = self:GetPos() + Vector(0, 0, 20);
-					tracedata.filter = v;
-					local tr = util.TraceLine(tracedata);
-					
-					if tr.HitPos == tracedata.endpos then
-						util.BlastDamage(self, self:GetThrower(), expos, 150, 200)
-		
-						effect = EffectData()
-						effect:SetOrigin(expos)
-						effect:SetStart(expos)
-		
-						util.Effect("Explosion", effect, true, true )
-						self:Remove()
-					end
+			
+			local tracedata = {};
+			tracedata.start = v:GetShootPos();
+			tracedata.endpos = self:GetPos() + Vector(0, 0, 20);
+			tracedata.filter = v;
+			local tr = util.TraceLine(tracedata);
+			
+			if tr.HitPos == tracedata.endpos then
+				util.BlastDamage(self, self:GetThrower(), expos, 150, 200)
+
+				effect = EffectData()
+				effect:SetOrigin(expos)
+				effect:SetStart(expos)
+
+				util.Effect("Explosion", effect, true, true)
+				self:Remove()
 			end
 		end
 	end
 end
+
 
 function ENT:OnTakeDamage(damage)
 	dmg = self:Health() - damage:GetDamage()
