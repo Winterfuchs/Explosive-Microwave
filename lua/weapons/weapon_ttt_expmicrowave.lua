@@ -2,7 +2,10 @@ if SERVER then
 	AddCSLuaFile()
 	resource.AddFile ("materials/vgui/ttt/icon_micriwave.vmt")
 	resource.AddFile ("materials/vgui/ttt/icon_microwave.vtf")
-	resource.AddWorkshop( "514778608" )
+	resource.AddWorkshop("514778608")
+
+	util.AddNetworkString("ttt_exp_microwave_register_thrower")
+	util.AddNetworkString("ttt_exp_microwave_update_team")
 end
 
 
@@ -54,24 +57,18 @@ SWEP.AllowDrop = true
 SWEP.NoSights = true
 
 function SWEP:PrimaryAttack()
-
-	if not self:CanPrimaryAttack() then
-	return end
+	if not self:CanPrimaryAttack() then return end
 	
-	 self.Weapon:SetNextPrimaryFire( CurTime() + self.Primary.Delay )
-	 
-	 self:CreateMicrowave()
-	 
+	self.Weapon:SetNextPrimaryFire(CurTime() + self.Primary.Delay)
+	self:CreateMicrowave()
 end
 
 function SWEP:DrawWorldModel()
-
-return false
+	return false
 end
 
 function SWEP:CreateMicrowave()
-if SERVER then
-		
+	if SERVER then
 		local ply = self.Owner
 		local micro = ents.Create("ttt_expmicrowave")
 		if IsValid(micro) and IsValid(ply) then
@@ -84,8 +81,31 @@ if SERVER then
 			micro:Spawn()
 			micro:PhysWake()
 			micro:SetThrower(ply)
-			micro:SetNWEntity("owner", ply)
 			
+			micro:SetNWEntity("micowave_owner", ply)
+			
+			-- transmit more (playerspecfic) data and add it to the entity to
+			-- allow multiple players with different roles to throw exp microwaves
+			if TTT2 then
+				local team = TEAMS[ply:GetTeam()]
+				local color = team.color or Color(0, 0, 0, 255)
+
+				micro.userdata = {
+					team = ply:GetTeam()
+				}
+
+				net.Start("ttt_exp_microwave_register_thrower")
+
+				net.WriteEntity(micro)
+				net.WriteString(ply:GetTeam())
+				net.WriteUInt(color.r, 8)
+				net.WriteUInt(color.g, 8)
+				net.WriteUInt(color.b, 8)
+				net.WriteUInt(color.a, 8)
+
+				net.Broadcast()
+			end
+
 			local phys = micro:GetPhysicsObject()
 			if IsValid(phys) then
 				phys:SetVelocity(vthrow)
@@ -99,5 +119,50 @@ function SWEP:SecondaryAttack()
 end
 
 function SWEP:OnDrop()
-self:Remove()
+	self:Remove()
+end
+
+if TTT2 then
+	if CLIENT then
+		net.Receive("ttt_exp_microwave_register_thrower", function()
+			local ent = net.ReadEntity()
+	
+			ent.userdata = {}
+			ent.userdata.team = net.ReadString()
+			ent.userdata.color = {
+				r = net.ReadUInt(8),
+				g = net.ReadUInt(8),
+				b = net.ReadUInt(8),
+				a = net.ReadUInt(8)
+			}
+	
+			-- add stencil for teammembers
+			if LocalPlayer():GetTeam() == ent.userdata.team then
+				marks.Add({ent}, ent.userdata.color)
+			end
+		end)
+
+		net.Receive("ttt_exp_microwave_update_team", function()
+			local client = LocalPlayer()
+			local new_team = net.ReadString()
+
+			local microwaves = ents.FindByClass("ttt_expmicrowave")
+			PrintTable(microwaves)
+			for _, v in pairs(microwaves) do
+				marks.Remove({v})
+
+				if v.userdata and v.userdata.team == new_team then
+					marks.Add({v}, v.userdata.color)
+				end
+			end
+		end)
+	end
+
+	if SERVER then
+		hook.Add("TTT2UpdateTeam", "tt2_microwave_update_team", function(ply, old, new)
+			net.Start("ttt_exp_microwave_update_team")
+			net.WriteString(new)
+			net.Send(ply)
+		end)
+	end
 end
