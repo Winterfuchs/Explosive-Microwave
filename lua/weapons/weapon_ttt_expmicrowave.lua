@@ -93,17 +93,18 @@ function SWEP:CreateMicrowave()
 				micro.userdata = {
 					team = ply:GetTeam()
 				}
+				timer.Simple( 0.1, function()
+					net.Start("ttt_exp_microwave_register_thrower")
 
-				net.Start("ttt_exp_microwave_register_thrower")
+					net.WriteEntity(micro)
+					net.WriteString(ply:GetTeam())
+					net.WriteUInt(color.r, 8)
+					net.WriteUInt(color.g, 8)
+					net.WriteUInt(color.b, 8)
+					net.WriteUInt(color.a, 8)
 
-				net.WriteEntity(micro)
-				net.WriteString(ply:GetTeam())
-				net.WriteUInt(color.r, 8)
-				net.WriteUInt(color.g, 8)
-				net.WriteUInt(color.b, 8)
-				net.WriteUInt(color.a, 8)
-
-				net.Broadcast()
+					net.Broadcast()
+				end)
 			end
 
 			local phys = micro:GetPhysicsObject()
@@ -128,6 +129,7 @@ if TTT2 then
 			local ent = net.ReadEntity()
 	
 			ent.userdata = {}
+			if (ent.userdata == nil) then return end
 			ent.userdata.team = net.ReadString()
 			ent.userdata.color = {
 				r = net.ReadUInt(8),
