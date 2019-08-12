@@ -149,7 +149,6 @@ if TTT2 then
 			local new_team = net.ReadString()
 
 			local microwaves = ents.FindByClass("ttt_expmicrowave")
-			PrintTable(microwaves)
 			for _, v in pairs(microwaves) do
 				marks.Remove({v})
 
